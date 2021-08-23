@@ -160,3 +160,5 @@ def game():
     learn_mode(flashcards_data[:10])
 
 game()
+
+#todo 
