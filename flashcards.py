@@ -6,6 +6,7 @@ import os
 import logging
 import csv
 from random import randint, shuffle
+from math import ceil
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -92,21 +93,40 @@ def play(deck):
             print(game_mode + ' is not a valid choice!')
 
 
-# learn mode
+# learn mode:
+# groups cards into subdecks
+# then loops until user won't guess all
+# skips ones that user pass
+# then takes next subdeck
+
 def learn_mode(deck):
     print(f"Learn mode. Type in EXIT to quit.")
 
+    subdeck_size = 10
+
     number_of_cards = len(deck)
+    number_of_subdecks = ceil(number_of_cards / subdeck_size)
+    last_subdeck_size = number_of_cards % subdeck_size
     question_counter = 0
     points = 0
 
-    while question_counter < number_of_cards:
-        if examine_user(deck[question_counter]):
-            points += 1
-        question_counter += 1
+    print(number_of_cards, number_of_subdecks, last_subdeck_size)
 
-    if question_counter == number_of_cards:
-        print(f"Finished. You earned {points} out of {number_of_cards}!")
+    subdeck_num = 0
+    while subdeck_num < number_of_subdecks:
+
+        # pick the next subdeck
+        if subdeck_num == number_of_subdecks - 1 and last_subdeck_size:
+            subdeck = deck[subdeck_num * subdeck_size:subdeck_num * subdeck_size + last_subdeck_size]
+            #print(subdeck_num * subdeck_size, ':', subdeck_num * subdeck_size + last_subdeck_size, 'last')
+        else:
+            subdeck = deck[subdeck_num * subdeck_size:(subdeck_num + 1) + subdeck_size]
+            #print(subdeck_num * subdeck_size, ':', (subdeck_num + 1) * subdeck_size)
+
+        while # all cards not have at least one correct point
+            # todo ask a questions with not have correct>0
+
+        subdeck_num += 1
 
 
 def smart_learn_mode(deck):
@@ -159,6 +179,6 @@ def game():
     flashcards_data = read_flashcards_file(path)
     learn_mode(flashcards_data[:10])
 
-game()
 
-#todo 
+flashcards_data = read_flashcards_file(r"E:\stuff\Maciej\_PYTHON\apps\flashcards\very.csv")
+learn_mode(flashcards_data)
