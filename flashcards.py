@@ -10,6 +10,9 @@ from math import ceil
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# flags
+exit_flag = False
+
 
 # class of Card object
 class Card:
@@ -41,14 +44,24 @@ def read_flashcards_file(path):
     with open(path, 'r') as file:
         csv_reader = csv.reader(file)
         for number, row in enumerate(csv_reader):
-            card_data.append(Card(row[0], row[1], number))
+            obverse = row[0]
+            reverse = row[1]
+            card_data.append(Card(obverse, reverse, number))
     return card_data
 
 
 # take answer from user
-def ask_question(question, answer):
-    user_answer = input(question + ": ")
-    if user_answer == answer:
+# return True if correct, False if incorrect
+def ask_question(number, question, answer):
+    global exit_flag
+
+    user_answer = input(f"{number + 1}. {question}: ")
+
+    if user_answer == 'EXIT':
+        exit_flag = True
+        logging.debug(f'users answer = EXIT, exit_flag = {exit_flag}')
+        return False
+    elif user_answer == answer:
         print('Correct!')
         return True
     else:
@@ -58,25 +71,31 @@ def ask_question(question, answer):
 
 # ask user a question
 def examine_user(card, question_type=0, hint=False):
-    if question_type == 0:  # normal
-        result = ask_question(card.obverse, card.reverse)
-        if result:
-            card.correct += 1
-            return True
-        else:
-            card.wrong += 1
-            return False
-    elif question_type == 1:  # reverse
-        result = ask_question(card.reverse, card.obverse)
-        if result:
-            card.correct += 1
-            return True
-        else:
-            card.wrong += 1
-            return False
-    elif question_type == 2:  # random
+    global exit_flag
+
+    if question_type == 0:
+        question = card.obverse
+        answer = card.reverse
+    elif question_type == 1:
+        question = card.reverse
+        answer = card.obverse
+    else:  # question_type == 2
         coin = randint(0, 1)
         examine_user(card, coin)
+
+    result = ask_question(card.number, question, answer)
+
+    # if exit flag is True, reset flag, return False
+    if exit_flag:
+        exit_flag = False
+        return False
+    else:
+        if result:
+            card.correct += 1
+        else:
+            card.wrong += 1
+
+    return True
 
 
 def play(deck):
@@ -95,79 +114,77 @@ def play(deck):
 
 # learn mode:
 # groups cards into subdecks
-# then loops until user won't guess all
+# then loops subdeck until user won't guess all questions
 # skips ones that user pass
 # then takes next subdeck
-
 def learn_mode(deck):
     print(f"Learn mode. Type in EXIT to quit.")
 
-    subdeck_size = 10
+    subdeck_size = 5
 
     number_of_cards = len(deck)
     number_of_subdecks = ceil(number_of_cards / subdeck_size)
     last_subdeck_size = number_of_cards % subdeck_size
+
     question_counter = 0
     points = 0
-
-    print(number_of_cards, number_of_subdecks, last_subdeck_size)
-
     subdeck_num = 0
+
     while subdeck_num < number_of_subdecks:
 
-        # pick the next subdeck
+        # pick the next subdeck, the last one might have less cards
         if subdeck_num == number_of_subdecks - 1 and last_subdeck_size:
             subdeck = deck[subdeck_num * subdeck_size:subdeck_num * subdeck_size + last_subdeck_size]
-            #print(subdeck_num * subdeck_size, ':', subdeck_num * subdeck_size + last_subdeck_size, 'last')
+            logging.debug(
+                f"subdeck {subdeck_num}/{number_of_subdecks}, cards {subdeck_num * subdeck_size}:{subdeck_num * subdeck_size + last_subdeck_size}, last")
         else:
-            subdeck = deck[subdeck_num * subdeck_size:(subdeck_num + 1) + subdeck_size]
-            #print(subdeck_num * subdeck_size, ':', (subdeck_num + 1) * subdeck_size)
+            subdeck = deck[subdeck_num * subdeck_size:subdeck_num * subdeck_size + subdeck_size]
+            logging.debug(f"subdeck:{[r.reverse for r in subdeck]}")
+            logging.debug(
+                f"subdeck {subdeck_num}/{number_of_subdecks}, cards {subdeck_num * subdeck_size}:{(subdeck_num + 1) * subdeck_size}")
 
-        while # all cards not have at least one correct point
-            # todo ask a questions with not have correct>0
+        # loop until not all questions in subdeck quessed correctly
+        while not all_cards_correct(subdeck):
+            for card in subdeck:
+                if card.correct < 1:
+                    # if examine_user returns false, finish game
+                    if not examine_user(card):
+                        summarize(deck)
+                        return False
 
         subdeck_num += 1
 
-
-def smart_learn_mode(deck):
-    print(f"Smart learn mode. Type in EXIT to quit.")
-
-    obverse_list = list(deck.keys())
-    failed_list = []
-    barrel = []
-
-    question_counter = 0
-    last = 0
-    points = 0
-    while True:
-        question_counter += 1
-
-        shuffle(obverse_list)
-        if len(failed_list) > 3:
-            shuffle(failed_list)
-            draw = failed_list.pop(0)
-        else:
-            draw = obverse_list.pop(0)
-
-        coin = randint(0, 1)
-        if coin == 0:
-            question = draw
-            answer = deck[question]
-        else:
-            answer = draw
-            question = deck[answer]
-
-        print(f'{question_counter}. ', end='')
-        result = ask_question(question, answer, hint=True)
-        if result == "EXIT":
-            print(f'You answered correctly {points} times. Goodbye!')
-            sys.exit()
-        elif result:
-            points += 1
-        else:  # if wrong answer
-            failed_list.append(draw)
+    summarize(deck)
+    return True
 
 
+# show stats of the game
+def summarize(deck):
+    corrects = 0
+    wrongs = 0
+
+    for card in deck:
+        corrects += card.correct
+        wrongs += card.wrong
+
+    if corrects+wrongs==0:
+        print("Game finished!")
+    else:
+        percentage = int(corrects / (corrects + wrongs) * 100)
+        print("Game finished!")
+        print(f"Your score is {corrects}/{wrongs + corrects} ({percentage}%)")
+
+
+# checks if every card has at least one correct point
+def all_cards_correct(deck):
+    for card in deck:
+        if card.correct == 0:
+            return False
+    return True
+
+
+# todo reset deck scores after game
+# todo smart learn?
 # todo test mode
 # todo save/read scores
 # todo handle typos
@@ -177,8 +194,8 @@ def game():
     if not path:
         sys.exit()
     flashcards_data = read_flashcards_file(path)
-    learn_mode(flashcards_data[:10])
+    learn_mode(flashcards_data)
 
 
 flashcards_data = read_flashcards_file(r"E:\stuff\Maciej\_PYTHON\apps\flashcards\very.csv")
-learn_mode(flashcards_data)
+learn_mode(flashcards_data[0:7])
