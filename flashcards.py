@@ -26,16 +26,20 @@ class Card:
 
 # get filepath from system arguments
 def get_flashcards_path():
-    cards_file_path = sys.argv[1]
-    if not os.path.exists(cards_file_path):
-        logging.error(f"{cards_file_path} - file not found!")
-        return False
-    elif not os.path.basename(cards_file_path).endswith('.csv'):
-        logging.error(f"{os.path.basename(cards_file_path)} is not a csv file!")
-        return False
+    if len(sys.argv)>1:
+        cards_file_path = sys.argv[1]
+        if not os.path.exists(cards_file_path):
+            logging.error(f"{cards_file_path} - file not found!")
+            return False
+        elif not os.path.basename(cards_file_path).endswith('.csv'):
+            logging.error(f"{os.path.basename(cards_file_path)} is not a csv file!")
+            return False
+        else:
+            logging.debug(f"Path is correct.")
+            return cards_file_path
     else:
-        logging.debug(f"Path is correct.")
-        return cards_file_path
+        logging.error("No path given!")
+        sys.exit(0)
 
 
 # read data from file
@@ -47,11 +51,16 @@ def read_flashcards_file(path):
             obverse = row[0]
             reverse = row[1]
             card_data.append(Card(obverse, reverse, number))
-    return card_data
+
+    if card_data:
+        logging.debug(f"Successfully imported {len(card_data)} elements from {os.path.basename(path)} file.")
+        return card_data
+    else:
+        logging.error(f"{os.path.basename(path)} - file is empty!")
+        sys.exit()
 
 
-# take answer from user
-# return True if correct, False if incorrect
+# take answer from user, return True if correct, False if incorrect
 def ask_question(number, question, answer):
     global exit_flag
 
@@ -98,18 +107,52 @@ def examine_user(card, question_type=0, hint=False):
     return True
 
 
-def play(deck):
-    while True:
-        game_mode = input('Choose game mode: learn/test. Type EXIT to quit')
+# show stats of the game
+def summarize(deck):
+    corrects = 0
+    wrongs = 0
 
-        if game_mode == 'learn':
-            learn_mode(deck)
+    for card in deck:
+        corrects += card.correct
+        wrongs += card.wrong
 
-        elif game_mode == 'EXIT':
-            print('Farewell!')
-            sys.exit()
-        else:
-            print(game_mode + ' is not a valid choice!')
+    if corrects + wrongs == 0:
+        print("Game finished!")
+    else:
+        percentage = int(corrects / (corrects + wrongs) * 100)
+        print("Game finished!")
+        print(f"Your score is {corrects}/{wrongs + corrects} ({percentage}%)")
+
+
+# checks if every card has at least one correct point
+def all_cards_correct(deck):
+    for card in deck:
+        if card.correct == 0:
+            return False
+    return True
+
+
+# resets deck wrongs and corrects parameters
+def reset_scores(deck):
+    for card in deck:
+        card.correct = 0
+        card.wrong = 0
+    return True
+
+
+# test mode
+def test_mode(deck, num_of_questions=10):
+    print(f"Test mode: answer all {num_of_questions} questions.")
+
+    shuffle(deck)
+    test_deck = deck[:num_of_questions]
+    renumerate(test_deck)
+
+    for card in test_deck:
+        examine_user(card)
+
+    summarize(test_deck)
+    return True
 
 
 # learn mode:
@@ -120,6 +163,8 @@ def play(deck):
 def learn_mode(deck):
     print(f"Learn mode. Type in EXIT to quit.")
 
+    # randomize deck
+    shuffle(deck)
     subdeck_size = 5
 
     number_of_cards = len(deck)
@@ -155,47 +200,36 @@ def learn_mode(deck):
         subdeck_num += 1
 
     summarize(deck)
+    reset_scores(deck)
     return True
 
 
-# show stats of the game
-def summarize(deck):
-    corrects = 0
-    wrongs = 0
-
-    for card in deck:
-        corrects += card.correct
-        wrongs += card.wrong
-
-    if corrects+wrongs==0:
-        print("Game finished!")
-    else:
-        percentage = int(corrects / (corrects + wrongs) * 100)
-        print("Game finished!")
-        print(f"Your score is {corrects}/{wrongs + corrects} ({percentage}%)")
+# changes number parameter of cards in deck
+def renumerate(deck):
+    for num, card in enumerate(deck):
+        card.number = num
 
 
-# checks if every card has at least one correct point
-def all_cards_correct(deck):
-    for card in deck:
-        if card.correct == 0:
-            return False
-    return True
-
-
-# todo reset deck scores after game
-# todo smart learn?
 # todo test mode
-# todo save/read scores
+# todo main menu
 # todo handle typos
 
 def game():
     path = get_flashcards_path()
     if not path:
         sys.exit()
-    flashcards_data = read_flashcards_file(path)
-    learn_mode(flashcards_data)
+    flashcards = read_flashcards_file(path)
+    print(f"Flashcards from file {os.path.basename(path)}")
+    game_mode = ''
+    while game_mode not in ['learn', 'test', 'EXIT']:
+        game_mode = input("Choose game mode (learn/test). EXIT to quit: ")
+    if game_mode == "learn":
+        learn_mode(flashcards)
+    elif game_mode == "test":
+        test_mode(flashcards)
+    elif game_mode == 'EXIT':
+        sys.exit(0)
 
 
-flashcards_data = read_flashcards_file(r"E:\stuff\Maciej\_PYTHON\apps\flashcards\very.csv")
-learn_mode(flashcards_data[0:7])
+# flashcards_data = read_flashcards_file(r"E:\stuff\Maciej\_PYTHON\apps\flashcards\very.csv")
+game()
